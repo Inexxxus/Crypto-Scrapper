@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Crypto Tracker — Modern UI with:
 - Chart range dropdown (7/30/90/365 days)
@@ -474,4 +473,4 @@ if __name__ == "__main__":
 # Web version (next steps)
 # -------------------------
 # To port to web later: create a REST API (Python backend) that calls CoinGecko and a React/Next frontend
-# that fetches the API, shows the table/cards, and uses a charting lib (e.g. Chart.js, Recharts, TradingView).
+# that fetches the API, shows the table/cards, and uses a charting lib (e.g. Chart.js, Recharts, TradingView).``` 
