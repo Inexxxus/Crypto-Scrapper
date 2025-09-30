@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """
-Crypto Tracker with Modern UI + Daily Trend Charts
+Crypto Tracker with Modern UI + Search + 30-Day Chart
 - Fetches live crypto data from CoinGecko API
-- Displays 20+ popular coins
+- Displays 20+ popular coins (BTC, ETH, SOL, DOGE, ADA, XRP, etc.)
+- Search bar to filter coins
 - Modern Material Design using qt-material
-- Shows 7-day daily line chart with % changes for selected coin
+- Shows 7-day or 30-day daily line chart with % changes for selected coin
+- Window starts maximized but keeps minimize/close buttons
 """
 
 import sys
@@ -13,7 +15,7 @@ import pandas as pd
 
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QLabel, QPushButton,
-    QTableWidget, QTableWidgetItem, QMessageBox, QHeaderView
+    QTableWidget, QTableWidgetItem, QMessageBox, QHeaderView, QLineEdit
 )
 from PySide6.QtCore import Qt
 
@@ -23,7 +25,7 @@ from matplotlib.figure import Figure
 import qt_material
 
 
-# Popular coins to track (CoinGecko IDs!)
+# Popular coins to track
 COINS = [
     "bitcoin", "ethereum", "solana", "dogecoin", "cardano", "ripple",
     "polkadot", "litecoin", "tron", "polygon", "avalanche-2", "chainlink",
@@ -48,14 +50,20 @@ class CryptoTracker(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("🚀 Crypto Tracker with Charts")
-        self.resize(1200, 700)
 
         layout = QVBoxLayout()
 
-        self.title = QLabel("📊 Live Crypto Prices + 7-Day Daily Trends")
+        # Title
+        self.title = QLabel("📊 Live Crypto Prices + 7/30-Day Trends")
         self.title.setAlignment(Qt.AlignCenter)
         self.title.setStyleSheet("font-size: 22px; font-weight: bold; margin: 10px;")
         layout.addWidget(self.title)
+
+        # Search bar
+        self.search_bar = QLineEdit()
+        self.search_bar.setPlaceholderText("🔍 Search coin...")
+        self.search_bar.textChanged.connect(self.filter_table)
+        layout.addWidget(self.search_bar)
 
         # Table
         self.table = QTableWidget()
@@ -90,33 +98,39 @@ class CryptoTracker(QWidget):
                 "price_change_percentage": "24h,7d"
             })
             data = response.json()
+            self.data = data  # save for search filter
 
-            self.table.setRowCount(len(data))
-
-            for row, coin in enumerate(data):
-                # Store coin ID in the "Coin" column as hidden data
-                item = QTableWidgetItem(coin["name"])
-                item.setData(Qt.UserRole, coin["id"])  # CoinGecko ID
-                self.table.setItem(row, 0, item)
-
-                self.table.setItem(row, 1, QTableWidgetItem(f"${coin['current_price']:,}"))
-                self.table.setItem(row, 2, QTableWidgetItem(f"${coin['market_cap']:,}"))
-                self.table.setItem(row, 3, QTableWidgetItem(f"{coin['price_change_percentage_24h']:.2f}%"))
-                self.table.setItem(row, 4, QTableWidgetItem(f"{coin.get('price_change_percentage_7d_in_currency', 0):.2f}%"))
-                self.table.setItem(row, 5, QTableWidgetItem(f"${coin['total_volume']:,}"))
-                self.table.setItem(row, 6, QTableWidgetItem(f"{coin.get('circulating_supply', 0):,.0f}"))
-                self.table.setItem(row, 7, QTableWidgetItem(f"{coin.get('total_supply', 0) or '∞'}"))
+            self.populate_table(data)
 
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to fetch data:\n{e}")
 
+    def populate_table(self, data):
+        self.table.setRowCount(len(data))
+
+        for row, coin in enumerate(data):
+            self.table.setItem(row, 0, QTableWidgetItem(coin["name"]))
+            self.table.setItem(row, 1, QTableWidgetItem(f"${coin['current_price']:,}"))
+            self.table.setItem(row, 2, QTableWidgetItem(f"${coin['market_cap']:,}"))
+            self.table.setItem(row, 3, QTableWidgetItem(f"{coin['price_change_percentage_24h']:.2f}%"))
+            self.table.setItem(row, 4, QTableWidgetItem(f"{coin.get('price_change_percentage_7d_in_currency', 0):.2f}%"))
+            self.table.setItem(row, 5, QTableWidgetItem(f"${coin['total_volume']:,}"))
+            self.table.setItem(row, 6, QTableWidgetItem(f"{coin.get('circulating_supply', 0):,.0f}"))
+            self.table.setItem(row, 7, QTableWidgetItem(f"{coin.get('total_supply', 0) or '∞'}"))
+
+    def filter_table(self, text):
+        """Filter coins in table by search text."""
+        text = text.lower()
+        filtered = [coin for coin in self.data if text in coin["name"].lower()]
+        self.populate_table(filtered)
+
     def show_chart(self, row, _col):
-        """Show daily trend line chart with % changes when a coin is clicked."""
-        coin_id = self.table.item(row, 0).data(Qt.UserRole)  # Use CoinGecko ID
+        """Show 30-day daily trend line chart with % changes when a coin is clicked."""
+        coin = self.table.item(row, 0).text().lower()
 
         try:
-            url = MARKET_CHART_URL.format(id=coin_id)
-            response = requests.get(url, params={"vs_currency": "usd", "days": 7, "interval": "daily"})
+            url = MARKET_CHART_URL.format(id=coin)
+            response = requests.get(url, params={"vs_currency": "usd", "days": 30, "interval": "daily"})
             data = response.json()
 
             if "prices" not in data:
@@ -144,7 +158,7 @@ class CryptoTracker(QWidget):
                 else:
                     self.canvas.axes.text(date, price, f"▼ {change:.2f}%", color="red", fontsize=8, ha="center")
 
-            self.canvas.axes.set_title(f"{coin_id.capitalize()} - Last 7 Days Trend", color="white", fontsize=12)
+            self.canvas.axes.set_title(f"{coin.capitalize()} - Last 30 Days Trend", color="white", fontsize=12)
             self.canvas.axes.set_ylabel("Price (USD)", color="white")
             self.canvas.axes.grid(True, linestyle="--", alpha=0.4)
             self.canvas.axes.tick_params(colors="white")
@@ -160,5 +174,5 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     qt_material.apply_stylesheet(app, theme="dark_teal.xml")  # Modern Dark Theme
     window = CryptoTracker()
-    window.show()
+    window.showMaximized()  # Start maximized but keep title bar
     sys.exit(app.exec())
