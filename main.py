@@ -2,7 +2,7 @@
 """
 Crypto Tracker with Modern UI + Daily Trend Charts
 - Fetches live crypto data from CoinGecko API
-- Displays 20+ popular coins (BTC, ETH, SOL, DOGE, ADA, XRP, etc.)
+- Displays 20+ popular coins
 - Modern Material Design using qt-material
 - Shows 7-day daily line chart with % changes for selected coin
 """
@@ -23,7 +23,7 @@ from matplotlib.figure import Figure
 import qt_material
 
 
-# Popular coins to track
+# Popular coins to track (CoinGecko IDs!)
 COINS = [
     "bitcoin", "ethereum", "solana", "dogecoin", "cardano", "ripple",
     "polkadot", "litecoin", "tron", "polygon", "avalanche-2", "chainlink",
@@ -94,7 +94,11 @@ class CryptoTracker(QWidget):
             self.table.setRowCount(len(data))
 
             for row, coin in enumerate(data):
-                self.table.setItem(row, 0, QTableWidgetItem(coin["name"]))
+                # Store coin ID in the "Coin" column as hidden data
+                item = QTableWidgetItem(coin["name"])
+                item.setData(Qt.UserRole, coin["id"])  # CoinGecko ID
+                self.table.setItem(row, 0, item)
+
                 self.table.setItem(row, 1, QTableWidgetItem(f"${coin['current_price']:,}"))
                 self.table.setItem(row, 2, QTableWidgetItem(f"${coin['market_cap']:,}"))
                 self.table.setItem(row, 3, QTableWidgetItem(f"{coin['price_change_percentage_24h']:.2f}%"))
@@ -108,10 +112,10 @@ class CryptoTracker(QWidget):
 
     def show_chart(self, row, _col):
         """Show daily trend line chart with % changes when a coin is clicked."""
-        coin = self.table.item(row, 0).text().lower()
+        coin_id = self.table.item(row, 0).data(Qt.UserRole)  # Use CoinGecko ID
 
         try:
-            url = MARKET_CHART_URL.format(id=coin)
+            url = MARKET_CHART_URL.format(id=coin_id)
             response = requests.get(url, params={"vs_currency": "usd", "days": 7, "interval": "daily"})
             data = response.json()
 
@@ -140,7 +144,7 @@ class CryptoTracker(QWidget):
                 else:
                     self.canvas.axes.text(date, price, f"▼ {change:.2f}%", color="red", fontsize=8, ha="center")
 
-            self.canvas.axes.set_title(f"{coin.capitalize()} - Last 7 Days Trend", color="white", fontsize=12)
+            self.canvas.axes.set_title(f"{coin_id.capitalize()} - Last 7 Days Trend", color="white", fontsize=12)
             self.canvas.axes.set_ylabel("Price (USD)", color="white")
             self.canvas.axes.grid(True, linestyle="--", alpha=0.4)
             self.canvas.axes.tick_params(colors="white")
